@@ -8,7 +8,9 @@ const api = {
   onProgress: (callback) =>
     ipcRenderer.on('download-progress', (event, progress) => callback(progress)),
   onComplete: (callback) => ipcRenderer.on('download-complete', (event, path) => callback(path)),
-  onFailure: (callback) => ipcRenderer.on('download-failed', (event, error) => callback(error))
+  onFailure: (callback) => ipcRenderer.on('download-failed', (event, error) => callback(error)),
+  pauseDownload: () => ipcRenderer.send('pause-download'), // NEW
+  resumeDownload: () => ipcRenderer.send('resume-download') // NEW
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

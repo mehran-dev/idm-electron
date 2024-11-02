@@ -7,6 +7,7 @@ function App() {
   const [url, setUrl] = useState(film)
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState('')
+  const [isPaused, setIsPaused] = useState(false) // NEW: Track if download is paused
 
   const startDownload = () => {
     window.api.startDownload(url) // Only pass the URL
@@ -27,7 +28,17 @@ function App() {
   window.api.onFailure((error) => {
     setStatus(`Download failed: ${error}`)
   })
+  const pauseDownload = () => {
+    window.api.pauseDownload() // To be implemented in `preload.js` and main
+    setIsPaused(true)
+    setStatus('Paused')
+  }
 
+  const resumeDownload = () => {
+    window.api.resumeDownload() // To be implemented in `preload.js` and main
+    setIsPaused(false)
+    setStatus('Resuming...')
+  }
   return (
     <div>
       <h1>Electron Download Manager</h1>
@@ -38,6 +49,9 @@ function App() {
         placeholder="Enter URL"
       />
       <button onClick={startDownload}>Start Download</button>
+      <button onClick={isPaused ? resumeDownload : pauseDownload}>
+        {isPaused ? 'Resume' : 'Pause'}
+      </button>
       <div>
         <p>Status: {status}</p>
         <progress value={progress} max="100">

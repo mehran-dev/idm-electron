@@ -6,6 +6,8 @@ import fs from 'fs'
 import axios from 'axios'
 
 let mainWindow
+let downloadStream: fs.WriteStream | null = null // NEW: Store the stream for pause/resume
+
 function createWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
@@ -75,39 +77,56 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app"s specific main process
 // code. You can also put them in separate files and require them here.
+
 ipcMain.handle('start-download', async (event, downloadUrl) => {
   const fileName = path.basename(new URL(downloadUrl).pathname)
   const savePath = path.join(app.getPath('downloads'), fileName)
-  const writer = fs.createWriteStream(savePath)
+  let downloadedLength = 0
+
+  if (fs.existsSync(savePath)) {
+    downloadedLength = fs.statSync(savePath).size
+  }
+
+  downloadStream = fs.createWriteStream(savePath, { flags: 'a' }) // Append mode
 
   try {
     const response = await axios({
       method: 'get',
       url: downloadUrl,
-      responseType: 'stream'
+      responseType: 'stream',
+      headers: { Range: `bytes=${downloadedLength}-` }
     })
 
-    const totalLength = response.headers['content-length']
+    const totalLength = parseInt(
+      response.headers['content-range']?.split('/')[1] || response.headers['content-length']
+    )
 
-    let downloadedLength = 0
-
-    // Track progress
     response.data.on('data', (chunk) => {
       downloadedLength += chunk.length
       const progress = (downloadedLength / totalLength) * 100
       mainWindow.webContents.send('download-progress', progress.toFixed(2))
     })
 
-    response.data.pipe(writer)
+    response.data.pipe(downloadStream)
 
-    writer.on('finish', () => {
+    downloadStream.on('finish', () => {
       mainWindow.webContents.send('download-complete', savePath)
+      downloadStream = null // Reset on complete
     })
 
-    writer.on('error', (err) => {
+    downloadStream.on('error', (err) => {
       mainWindow.webContents.send('download-failed', err.message)
     })
   } catch (error) {
     mainWindow.webContents.send('download-failed', error.message)
   }
+})
+
+// Pause and Resume
+ipcMain.on('pause-download', () => {
+  if (downloadStream) downloadStream.cork() // Pause the stream
+})
+
+ipcMain.on('resume-download', () => {
+  if (downloadStream) downloadStream.uncork() // Resume the stream
 })
